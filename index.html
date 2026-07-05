@@ -1,342 +1,63 @@
-<script>
-const STORAGE_KEY = 'subsync_data';
-let cachedData = null;  // کش داده‌ها برای جلوگیری از درخواست‌های اضافی
+from flask import Flask, jsonify, request, send_from_directory
+import os
+import json
 
-/* ============================================================
-   داده‌ها: اولویت با سرور، fallback به localStorage
-============================================================ */
+app = Flask(__name__, static_folder=".")
 
-async function fetchDataFromServer() {
-    try {
-        const res = await fetch('/data');
-        if (!res.ok) throw new Error('Server error');
-        const data = await res.json();
-        if (data && data.subs) {
-            cachedData = data;
-            // همگام‌سازی با localStorage (اختیاری)
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-            return data;
-        }
-    } catch (e) {
-        console.warn('سرور در دسترس نیست، از localStorage استفاده می‌شود.');
-    }
-    // fallback به localStorage
-    const local = loadData();
-    cachedData = local;
-    return local;
-}
+DATA_FILE = "subs.json"
 
-function loadData() {
-    try {
-        const raw = localStorage.getItem(STORAGE_KEY);
-        if (!raw) return { subs: [] };
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed.subs)) {
-            parsed.subs = parsed.subs.map(sub => ({
-                ...sub,
-                configs: Array.isArray(sub.configs) ? sub.configs : []
-            }));
-        }
-        return parsed;
-    } catch (e) {
-        return { subs: [] };
-    }
-}
+# ─── توابع کمکی ────────────────────────────────────────────────
 
-function saveData(data) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-    cachedData = data;
-    // همگام‌سازی با سرور (غیرهمزمان)
-    syncToServer(data);
-}
+def load_data():
+    if os.path.exists(DATA_FILE):
+        with open(DATA_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return {"subs": []}
 
-async function syncToServer(data) {
-    try {
-        await fetch('/sync', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data)
-        });
-    } catch (e) {
-        console.warn('همگام‌سازی با سرور ناموفق بود');
-    }
-}
+def save_data(data):
+    with open(DATA_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
 
-function findSubIndex(data, name) {
-    return data.subs.findIndex(s => s.name === name);
-}
+# ─── مسیرها ──────────────────────────────────────────────────────
 
-function getSub(data, name) {
-    return data.subs.find(s => s.name === name) || null;
-}
+@app.route("/")
+def home():
+    return send_from_directory(".", "index.html")
 
-/* ============================================================
-   TOAST
-============================================================ */
+@app.route("/status")
+def status():
+    return jsonify({
+        "status": "ok",
+        "message": "SubSync Backend is running 🚀",
+        "routes": ["/sub/<name>", "/sync", "/data"]
+    })
 
-function showToast(message, type = 'info') {
-    const container = document.getElementById('toast-container');
-    const el = document.createElement('div');
-    el.className = `toast toast-${type}`;
-    el.textContent = message;
-    container.appendChild(el);
-    setTimeout(() => {
-        el.style.opacity = '0';
-        el.style.transform = 'translateX(20px)';
-        setTimeout(() => el.remove(), 300);
-    }, 2500);
-}
+@app.route("/data", methods=["GET"])
+def get_data():
+    return jsonify(load_data())
 
-/* ============================================================
-   TABS
-============================================================ */
+@app.route("/sync", methods=["POST"])
+def sync_data():
+    data = request.json
+    if not data or "subs" not in data:
+        return jsonify({"error": "Invalid data"}), 400
+    save_data(data)
+    return jsonify({"ok": True, "message": "Data synced"})
 
-let currentTab = 'subs';
+@app.route("/sub/<name>")
+def get_sub(name):
+    data = load_data()
+    sub = next((s for s in data.get("subs", []) if s["name"] == name), None)
+    if not sub:
+        return f"No subscription found for '{name}'", 404
+    configs = sub.get("configs", [])
+    if not configs:
+        return f"No configs for '{name}'", 404
+    return "\n".join(configs), 200, {"Content-Type": "text/plain; charset=utf-8"}
 
-function showTab(tab) {
-    currentTab = tab;
-    document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
-    const target = document.getElementById('tab-' + tab);
-    if (target) target.classList.remove('hidden');
-    document.querySelectorAll('.nav-btn').forEach(btn => {
-        btn.classList.toggle('active', btn.dataset.tab === tab);
-    });
-    if (tab === 'subs') renderSubs();
-}
-
-/* ============================================================
-   RENDER SUBS
-============================================================ */
-
-function escHtml(str) {
-    const d = document.createElement('div');
-    d.textContent = str;
-    return d.innerHTML;
-}
-
-function renderSubs() {
-    const data = cachedData || loadData();
-    const grid = document.getElementById('subs-grid');
-    const empty = document.getElementById('subs-empty');
-
-    if (!data.subs.length) {
-        grid.innerHTML = '';
-        empty.classList.remove('hidden');
-        return;
-    }
-    empty.classList.add('hidden');
-
-    grid.innerHTML = data.subs.map(sub => `
-        <div class="sub-card" data-sub-name="${escHtml(sub.name)}">
-            <div class="flex items-center justify-between">
-                <span class="name">${escHtml(sub.name)}</span>
-                <span class="count">${sub.configs.length}</span>
-            </div>
-            <div class="url-preview">/sub/${escHtml(sub.name)}</div>
-        </div>
-    `).join('');
-
-    document.querySelectorAll('.sub-card').forEach(card => {
-        card.addEventListener('click', function() {
-            const name = this.dataset.subName;
-            if (name) openModal(name);
-        });
-    });
-}
-
-/* ============================================================
-   CREATE SUB
-============================================================ */
-
-async function createSub(e) {
-    e.preventDefault();
-    const input = document.getElementById('sub-name');
-    const name = input.value.trim();
-    if (!name) return showToast('لطفاً نام را وارد کنید', 'error');
-
-    let data = cachedData || loadData();
-    if (findSubIndex(data, name) !== -1) {
-        return showToast('این ساب وجود دارد', 'error');
-    }
-
-    data.subs.push({ name, configs: [] });
-    saveData(data);
-    input.value = '';
-    showToast('ساخته شد', 'success');
-    renderSubs();
-    showTab('subs');
-}
-
-/* ============================================================
-   MODAL
-============================================================ */
-
-let currentModalSub = null;
-
-async function openModal(name) {
-    // همیشه از سرور داده‌های تازه می‌گیریم
-    const data = await fetchDataFromServer();
-    const sub = getSub(data, name);
-    if (!sub) {
-        showToast('یافت نشد', 'error');
-        return;
-    }
-    currentModalSub = name;
-
-    document.getElementById('modal-title').textContent = name;
-    const url = `${window.location.origin}/sub/${encodeURIComponent(name)}`;
-    document.getElementById('modal-url-input').value = url;
-    document.getElementById('modal-url-display').textContent = url;
-
-    renderConfigs(sub.configs);
-    document.getElementById('sub-modal').classList.remove('hidden');
-    document.body.style.overflow = 'hidden';
-}
-
-function closeModal() {
-    document.getElementById('sub-modal').classList.add('hidden');
-    document.body.style.overflow = '';
-    currentModalSub = null;
-}
-
-function renderConfigs(configs) {
-    const container = document.getElementById('modal-configs');
-    const empty = document.getElementById('modal-configs-empty');
-
-    if (!configs || !configs.length) {
-        container.innerHTML = '';
-        empty.classList.remove('hidden');
-        return;
-    }
-    empty.classList.add('hidden');
-
-    container.innerHTML = configs.map((cfg, idx) => `
-        <div class="config-item">
-            <span>${escHtml(cfg)}</span>
-            <button class="del" onclick="removeConfig(${idx})">✕</button>
-        </div>
-    `).join('');
-}
-
-/* ============================================================
-   ADD / REMOVE CONFIG
-============================================================ */
-
-async function addConfig(e) {
-    e.preventDefault();
-    if (!currentModalSub) return showToast('هیچ سابی باز نیست', 'error');
-
-    const input = document.getElementById('new-config');
-    const raw = input.value.trim();
-    if (!raw) return showToast('لطفاً لینک کانفیگ را وارد کنید', 'error');
-
-    let data = cachedData || loadData();
-    const idx = findSubIndex(data, currentModalSub);
-    if (idx === -1) return showToast('ساب یافت نشد', 'error');
-
-    if (!Array.isArray(data.subs[idx].configs)) data.subs[idx].configs = [];
-
-    if (data.subs[idx].configs.some(c => c === raw)) {
-        return showToast('تکراریه', 'error');
-    }
-
-    data.subs[idx].configs.push(raw);
-    saveData(data);
-    input.value = '';
-    showToast('اضافه شد', 'success');
-    renderConfigs(data.subs[idx].configs);
-    renderSubs();
-}
-
-async function removeConfig(index) {
-    if (!currentModalSub) return;
-    if (!confirm('حذف شود؟')) return;
-
-    let data = cachedData || loadData();
-    const idx = findSubIndex(data, currentModalSub);
-    if (idx === -1) return;
-
-    data.subs[idx].configs.splice(index, 1);
-    saveData(data);
-    renderConfigs(data.subs[idx].configs);
-    renderSubs();
-    showToast('حذف شد', 'info');
-}
-
-/* ============================================================
-   DELETE SUB
-============================================================ */
-
-async function deleteCurrentSub() {
-    if (!currentModalSub) return;
-    if (!confirm('کل ساب حذف شود؟')) return;
-
-    let data = cachedData || loadData();
-    const idx = findSubIndex(data, currentModalSub);
-    if (idx === -1) return;
-
-    data.subs.splice(idx, 1);
-    saveData(data);
-    closeModal();
-    renderSubs();
-    showToast('حذف شد', 'info');
-}
-
-/* ============================================================
-   COPY URL
-============================================================ */
-
-function copySubUrl() {
-    const input = document.getElementById('modal-url-input');
-    if (!input.value) return;
-    if (navigator.clipboard) {
-        navigator.clipboard.writeText(input.value)
-            .then(() => showToast('کپی شد', 'success'))
-            .catch(() => fallbackCopy(input));
-    } else {
-        fallbackCopy(input);
-    }
-}
-
-function fallbackCopy(input) {
-    input.select();
-    try {
-        document.execCommand('copy');
-        showToast('کپی شد', 'success');
-    } catch (e) {
-        showToast('کپی نشد، دستی کپی کن', 'error');
-    }
-}
-
-/* ============================================================
-   THEME
-============================================================ */
-
-function setTheme(theme) {
-    document.documentElement.setAttribute('data-theme', theme);
-    document.querySelectorAll('.theme-btn').forEach(btn => {
-        btn.classList.toggle('active', btn.dataset.themeBtn === theme);
-    });
-    localStorage.setItem('subsync_theme', theme);
-}
-
-function loadTheme() {
-    const saved = localStorage.getItem('subsync_theme') || 'dark';
-    setTheme(saved);
-}
-
-/* ============================================================
-   INIT
-============================================================ */
-
-document.addEventListener('DOMContentLoaded', async function() {
-    loadTheme();
-    // بارگذاری داده‌ها از سرور (با fallback به localStorage)
-    await fetchDataFromServer();
-    renderSubs();
-
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') closeModal();
-    });
-});
-</script>
+if __name__ == "__main__":
+    if not os.path.exists(DATA_FILE):
+        save_data({"subs": []})
+        print(f"✅ فایل {DATA_FILE} ساخته شد.")
+    print("🚀 SubSync Server running on http://0.0.0.0:5000")
+    app.run(host="0.0.0.0", port=5000, debug=True)
