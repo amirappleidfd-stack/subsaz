@@ -1,44 +1,34 @@
-import subprocess
-import sys
-
-def install_requirements():
-    try:
-        import flask
-    except ImportError:
-        print("Installing requirements...")
-        subprocess.check_call([sys.executable, "-m", "pip", "install", "-r", "requirements.txt"])
-
-install_requirements()
-
-
-from flask import Flask, request, jsonify, send_file
-import json
+from flask import Flask, jsonify, request, send_from_directory
 import os
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder=".")
 
-DATA_FILE = "data.json"
-
-def load_data():
-    if not os.path.exists(DATA_FILE):
-        return {"subs": []}
-    with open(DATA_FILE, "r", encoding="utf-8") as f:
-        return json.load(f)
-
-def save_data(data):
-    with open(DATA_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
-
+# ─── API ───
 @app.route("/")
 def home():
-    return send_file("index.html")
+    return send_from_directory(".", "index.html")
+
 
 @app.route("/status")
 def status():
     return jsonify({
         "status": "ok",
-        "message": "SubSync Backend is running 🚀"
+        "message": "SubSync Backend is running 🚀",
+        "routes": ["/sub/<name>", "/add"]
     })
 
+
+@app.route("/add", methods=["POST"])
+def add():
+    data = request.json
+    return jsonify({"ok": True, "received": data})
+
+
+@app.route("/sub/<name>")
+def get_sub(name):
+    return f"Subscription: {name}"
+
+
+# ─── RUN ───
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
