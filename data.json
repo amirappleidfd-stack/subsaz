@@ -1,7 +1,0 @@
-{
-  "amir": [
-    "vless://example1",
-    "vmess://example2",
-    "trojan://example3"
-  ]
-}
