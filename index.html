@@ -1,63 +1,1408 @@
-from flask import Flask, jsonify, request, send_from_directory
-import os
-import json
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SubSync — Subscription Manager</title>
 
-app = Flask(__name__, static_folder=".")
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
 
-DATA_FILE = "subs.json"
+    <style>
+        /* ─── RESET & BASE ─── */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
 
-# ─── توابع کمکی ────────────────────────────────────────────────
+        body {
+            font-family: 'Inter', system-ui, sans-serif;
+            background: #0a0000;
+            color: #fff;
+            transition: background 0.4s, color 0.4s;
+            min-height: 100vh;
+        }
 
-def load_data():
-    if os.path.exists(DATA_FILE):
-        with open(DATA_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    return {"subs": []}
+        /* ─── THEME VARIABLES ─── */
+        :root {
+            --bg-primary: #0a0000;
+            --bg-secondary: #120005;
+            --bg-card: rgba(255, 255, 255, 0.04);
+            --bg-card-hover: rgba(255, 255, 255, 0.08);
+            --border-color: rgba(255, 255, 255, 0.06);
+            --text-primary: #ffffff;
+            --text-secondary: rgba(255, 255, 255, 0.5);
+            --text-muted: rgba(255, 255, 255, 0.25);
+            --neon-red: #ff0000;
+            --neon-glow: 0 0 20px rgba(255, 0, 0, 0.15);
+            --input-bg: rgba(255, 255, 255, 0.05);
+            --input-border: rgba(255, 255, 255, 0.08);
+            --shadow-color: rgba(255, 0, 0, 0.08);
+            --sidebar-bg: rgba(10, 0, 0, 0.85);
+        }
 
-def save_data(data):
-    with open(DATA_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
+        [data-theme="light"] {
+            --bg-primary: #f5f0f0;
+            --bg-secondary: #ede8e8;
+            --bg-card: rgba(0, 0, 0, 0.04);
+            --bg-card-hover: rgba(0, 0, 0, 0.08);
+            --border-color: rgba(0, 0, 0, 0.08);
+            --text-primary: #1a0a0a;
+            --text-secondary: rgba(0, 0, 0, 0.5);
+            --text-muted: rgba(0, 0, 0, 0.3);
+            --neon-red: #cc0000;
+            --neon-glow: 0 0 20px rgba(204, 0, 0, 0.10);
+            --input-bg: rgba(0, 0, 0, 0.04);
+            --input-border: rgba(0, 0, 0, 0.10);
+            --shadow-color: rgba(0, 0, 0, 0.06);
+            --sidebar-bg: rgba(245, 240, 240, 0.92);
+        }
 
-# ─── مسیرها ──────────────────────────────────────────────────────
+        [data-theme="neon"] {
+            --bg-primary: #050008;
+            --bg-secondary: #0a0010;
+            --bg-card: rgba(255, 0, 80, 0.06);
+            --bg-card-hover: rgba(255, 0, 80, 0.12);
+            --border-color: rgba(255, 0, 80, 0.15);
+            --text-primary: #ffddee;
+            --text-secondary: rgba(255, 100, 150, 0.6);
+            --text-muted: rgba(255, 100, 150, 0.3);
+            --neon-red: #ff0055;
+            --neon-glow: 0 0 30px rgba(255, 0, 85, 0.25), 0 0 60px rgba(255, 0, 85, 0.08);
+            --input-bg: rgba(255, 0, 80, 0.06);
+            --input-border: rgba(255, 0, 80, 0.15);
+            --shadow-color: rgba(255, 0, 85, 0.10);
+            --sidebar-bg: rgba(5, 0, 8, 0.90);
+        }
 
-@app.route("/")
-def home():
-    return send_from_directory(".", "index.html")
+        /* ─── SCROLLBAR ─── */
+        ::-webkit-scrollbar {
+            width: 4px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: var(--neon-red);
+            border-radius: 4px;
+            opacity: 0.3;
+        }
 
-@app.route("/status")
-def status():
-    return jsonify({
-        "status": "ok",
-        "message": "SubSync Backend is running 🚀",
-        "routes": ["/sub/<name>", "/sync", "/data"]
-    })
+        /* ─── LAYOUT ─── */
+        .flex {
+            display: flex;
+        }
+        .min-h-screen {
+            min-height: 100vh;
+        }
+        .shrink-0 {
+            flex-shrink: 0;
+        }
+        .flex-1 {
+            flex: 1;
+        }
+        .flex-col {
+            flex-direction: column;
+        }
+        .items-center {
+            align-items: center;
+        }
+        .justify-between {
+            justify-content: space-between;
+        }
+        .gap-1 {
+            gap: 0.25rem;
+        }
+        .gap-2 {
+            gap: 0.5rem;
+        }
+        .gap-3 {
+            gap: 0.75rem;
+        }
+        .gap-4 {
+            gap: 1rem;
+        }
+        .gap-5 {
+            gap: 1.25rem;
+        }
+        .gap-6 {
+            gap: 1.5rem;
+        }
 
-@app.route("/data", methods=["GET"])
-def get_data():
-    return jsonify(load_data())
+        /* ─── SIDEBAR ─── */
+        .sidebar {
+            width: 220px;
+            min-height: 100vh;
+            padding: 1.5rem 1.25rem;
+            border-right: 1px solid var(--border-color);
+            background: var(--sidebar-bg);
+            backdrop-filter: blur(12px);
+            position: sticky;
+            top: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            z-index: 10;
+            transition: background 0.4s, border-color 0.4s;
+        }
+        .sidebar .logo {
+            font-size: 1.5rem;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+            margin-bottom: 1.5rem;
+        }
+        .sidebar .logo .neon {
+            color: var(--neon-red);
+            filter: drop-shadow(0 0 12px var(--neon-red));
+        }
+        .sidebar .logo .text {
+            color: var(--text-primary);
+            font-family: 'JetBrains Mono', monospace;
+        }
+        .sidebar .subtitle {
+            font-size: 0.6rem;
+            text-transform: uppercase;
+            letter-spacing: 0.2em;
+            color: var(--text-muted);
+            font-family: 'JetBrains Mono', monospace;
+            margin-top: -0.25rem;
+            margin-bottom: 1.5rem;
+        }
 
-@app.route("/sync", methods=["POST"])
-def sync_data():
-    data = request.json
-    if not data or "subs" not in data:
-        return jsonify({"error": "Invalid data"}), 400
-    save_data(data)
-    return jsonify({"ok": True, "message": "Data synced"})
+        .nav-btn {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.6rem 1rem;
+            border-radius: 0.75rem;
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            width: 100%;
+            text-align: left;
+            font-family: 'Inter', sans-serif;
+        }
+        .nav-btn:hover {
+            background: var(--bg-card);
+            color: var(--text-primary);
+        }
+        .nav-btn.active {
+            background: var(--bg-card);
+            color: var(--neon-red);
+            box-shadow: inset 0 0 0 1px rgba(255, 0, 0, 0.10);
+        }
+        .nav-btn .icon {
+            font-size: 1.2rem;
+            line-height: 1;
+        }
 
-@app.route("/sub/<name>")
-def get_sub(name):
-    data = load_data()
-    sub = next((s for s in data.get("subs", []) if s["name"] == name), None)
-    if not sub:
-        return f"No subscription found for '{name}'", 404
-    configs = sub.get("configs", [])
-    if not configs:
-        return f"No configs for '{name}'", 404
-    return "\n".join(configs), 200, {"Content-Type": "text/plain; charset=utf-8"}
+        .sidebar-footer {
+            margin-top: auto;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border-color);
+            font-size: 0.65rem;
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .sidebar-footer .dot {
+            width: 0.5rem;
+            height: 0.5rem;
+            border-radius: 50%;
+            background: #22c55e;
+            animation: pulse-dot 2s infinite;
+        }
+        @keyframes pulse-dot {
+            0%,
+            100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.3;
+            }
+        }
 
-if __name__ == "__main__":
-    if not os.path.exists(DATA_FILE):
-        save_data({"subs": []})
-        print(f"✅ فایل {DATA_FILE} ساخته شد.")
-    print("🚀 SubSync Server running on http://0.0.0.0:5000")
-    app.run(host="0.0.0.0", port=5000, debug=True)
+        /* ─── MAIN ─── */
+        main {
+            flex: 1;
+            padding: 2rem 2.5rem;
+            overflow-y: auto;
+            max-height: 100vh;
+            transition: background 0.4s;
+        }
+        .tab-content {
+            animation: fade-in 0.3s ease;
+        }
+        .tab-content.hidden {
+            display: none !important;
+        }
+
+        @keyframes fade-in {
+            from {
+                opacity: 0;
+                transform: translateY(6px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* ─── HEADINGS ─── */
+        .page-title {
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            letter-spacing: -0.02em;
+        }
+        .page-title .glow {
+            filter: drop-shadow(0 0 20px var(--neon-red));
+        }
+        .page-sub {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            font-family: 'JetBrains Mono', monospace;
+            margin-top: 0.15rem;
+        }
+
+        /* ─── GLASS CARD ─── */
+        .glass-card {
+            background: var(--bg-card);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--border-color);
+            border-radius: 1rem;
+            transition: all 0.3s ease;
+        }
+        .glass-card:hover {
+            border-color: rgba(255, 0, 0, 0.12);
+        }
+
+        /* ─── SUBSCRIPTION GRID CARDS ─── */
+        .sub-card {
+            background: var(--bg-card);
+            backdrop-filter: blur(8px);
+            border: 1px solid var(--border-color);
+            border-radius: 1rem;
+            padding: 1.25rem 1.5rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        .sub-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: var(--neon-red);
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .sub-card:hover {
+            background: var(--bg-card-hover);
+            border-color: rgba(255, 0, 0, 0.15);
+            transform: translateY(-2px);
+            box-shadow: var(--neon-glow);
+        }
+        .sub-card:hover::before {
+            opacity: 1;
+        }
+        .sub-card .name {
+            font-size: 1.05rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            font-family: 'JetBrains Mono', monospace;
+        }
+        .sub-card .count {
+            font-size: 0.7rem;
+            color: var(--text-secondary);
+            font-family: 'JetBrains Mono', monospace;
+            background: var(--bg-card);
+            padding: 0.15rem 0.6rem;
+            border-radius: 999px;
+            border: 1px solid var(--border-color);
+        }
+        .sub-card .url-preview {
+            font-size: 0.55rem;
+            color: var(--text-muted);
+            font-family: 'JetBrains Mono', monospace;
+            margin-top: 0.5rem;
+            word-break: break-all;
+            opacity: 0.6;
+        }
+
+        /* ─── INPUTS ─── */
+        .neon-input {
+            background: var(--input-bg);
+            border: 1px solid var(--input-border);
+            border-radius: 0.75rem;
+            padding: 0.7rem 1rem;
+            color: var(--text-primary);
+            font-size: 0.9rem;
+            font-family: 'JetBrains Mono', monospace;
+            transition: all 0.3s ease;
+            width: 100%;
+            outline: none;
+        }
+        .neon-input:focus {
+            border-color: var(--neon-red);
+            box-shadow: 0 0 0 3px rgba(255, 0, 0, 0.08);
+        }
+        .neon-input::placeholder {
+            color: var(--text-muted);
+            opacity: 0.5;
+        }
+        .neon-input:read-only {
+            cursor: default;
+            opacity: 0.7;
+        }
+
+        /* ─── BUTTONS ─── */
+        .neon-btn {
+            background: var(--neon-red);
+            color: #fff;
+            border: none;
+            padding: 0.6rem 1.2rem;
+            border-radius: 0.75rem;
+            font-weight: 600;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-family: 'Inter', sans-serif;
+            letter-spacing: 0.01em;
+            box-shadow: 0 0 20px rgba(255, 0, 0, 0.15);
+        }
+        .neon-btn:hover {
+            transform: scale(1.02);
+            box-shadow: 0 0 30px rgba(255, 0, 0, 0.25);
+        }
+        .neon-btn:active {
+            transform: scale(0.97);
+        }
+        .neon-btn-outline {
+            background: transparent;
+            color: var(--text-secondary);
+            border: 1px solid var(--border-color);
+            padding: 0.5rem 1rem;
+            border-radius: 0.75rem;
+            font-weight: 500;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-family: 'Inter', sans-serif;
+        }
+        .neon-btn-outline:hover {
+            border-color: var(--neon-red);
+            color: var(--text-primary);
+        }
+        .neon-btn-danger {
+            background: transparent;
+            color: #ef4444;
+            border: 1px solid rgba(239, 68, 68, 0.25);
+            padding: 0.5rem 1rem;
+            border-radius: 0.75rem;
+            font-weight: 500;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-family: 'Inter', sans-serif;
+        }
+        .neon-btn-danger:hover {
+            background: rgba(239, 68, 68, 0.08);
+            border-color: rgba(239, 68, 68, 0.4);
+        }
+
+        /* ─── THEME BUTTONS ─── */
+        .theme-btn {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 0.75rem;
+            padding: 0.6rem 0;
+            font-size: 0.8rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-family: 'Inter', sans-serif;
+            text-align: center;
+        }
+        .theme-btn:hover {
+            border-color: rgba(255, 0, 0, 0.15);
+            color: var(--text-primary);
+        }
+        .theme-btn.active {
+            border-color: var(--neon-red);
+            color: var(--neon-red);
+            background: rgba(255, 0, 0, 0.05);
+        }
+
+        /* ─── MODAL ─── */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 50;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(6px);
+            animation: fade-in 0.25s ease;
+        }
+        .modal-overlay.hidden {
+            display: none !important;
+        }
+        .modal-box {
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 1.25rem;
+            padding: 1.75rem 2rem;
+            width: 100%;
+            max-width: 640px;
+            max-height: 85vh;
+            overflow-y: auto;
+            position: relative;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            animation: modal-in 0.3s ease;
+        }
+        @keyframes modal-in {
+            from {
+                opacity: 0;
+                transform: scale(0.96) translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1) translateY(0);
+            }
+        }
+        .modal-close {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            font-size: 1.5rem;
+            cursor: pointer;
+            transition: color 0.2s;
+            line-height: 1;
+        }
+        .modal-close:hover {
+            color: var(--text-primary);
+        }
+
+        /* ─── CONFIG ITEMS ─── */
+        .config-item {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 0.75rem;
+            padding: 0.6rem 1rem;
+            font-size: 0.7rem;
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--text-secondary);
+            word-break: break-all;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.75rem;
+            transition: all 0.2s;
+        }
+        .config-item:hover {
+            border-color: rgba(255, 0, 0, 0.12);
+        }
+        .config-item .del {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 1rem;
+            transition: color 0.2s;
+            padding: 0 0.25rem;
+        }
+        .config-item .del:hover {
+            color: #ef4444;
+        }
+
+        /* ─── TOAST ─── */
+        #toast-container {
+            position: fixed;
+            top: 1.5rem;
+            right: 1.5rem;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        .toast {
+            background: var(--bg-card);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--border-color);
+            border-radius: 0.75rem;
+            padding: 0.75rem 1.25rem;
+            font-size: 0.85rem;
+            color: var(--text-primary);
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+            animation: toast-in 0.3s ease;
+            min-width: 200px;
+        }
+        .toast-error {
+            border-left: 3px solid #ef4444;
+        }
+        .toast-success {
+            border-left: 3px solid #22c55e;
+        }
+        .toast-info {
+            border-left: 3px solid var(--neon-red);
+        }
+        @keyframes toast-in {
+            from {
+                opacity: 0;
+                transform: translateX(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        /* ─── RESPONSIVE ─── */
+        @media (max-width: 768px) {
+            .sidebar {
+                width: 60px;
+                padding: 1rem 0.5rem;
+            }
+            .sidebar .logo .text,
+            .sidebar .subtitle,
+            .sidebar .nav-btn span:not(.icon),
+            .sidebar .sidebar-footer span {
+                display: none;
+            }
+            .sidebar .logo .neon {
+                font-size: 1.2rem;
+            }
+            .sidebar .logo {
+                text-align: center;
+            }
+            .nav-btn {
+                justify-content: center;
+                padding: 0.6rem;
+            }
+            .nav-btn .icon {
+                font-size: 1.3rem;
+            }
+            main {
+                padding: 1rem;
+            }
+            .page-title {
+                font-size: 1.3rem;
+            }
+            .modal-box {
+                padding: 1.25rem;
+            }
+            .subs-grid {
+                grid-template-columns: 1fr !important;
+            }
+            .flex-between {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 0.75rem;
+            }
+        }
+
+        /* ─── GRID ─── */
+        .subs-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 1.25rem;
+        }
+
+        /* ─── UTILITY ─── */
+        .text-center {
+            text-align: center;
+        }
+        .py-20 {
+            padding-top: 5rem;
+            padding-bottom: 5rem;
+        }
+        .mt-1 {
+            margin-top: 0.25rem;
+        }
+        .mt-2 {
+            margin-top: 0.5rem;
+        }
+        .mt-4 {
+            margin-top: 1rem;
+        }
+        .mt-5 {
+            margin-top: 1.25rem;
+        }
+        .mt-6 {
+            margin-top: 1.5rem;
+        }
+        .mt-8 {
+            margin-top: 2rem;
+        }
+        .mb-2 {
+            margin-bottom: 0.5rem;
+        }
+        .mb-4 {
+            margin-bottom: 1rem;
+        }
+        .mb-6 {
+            margin-bottom: 1.5rem;
+        }
+        .mb-8 {
+            margin-bottom: 2rem;
+        }
+        .mx-auto {
+            margin-left: auto;
+            margin-right: auto;
+        }
+        .max-w-lg {
+            max-width: 32rem;
+        }
+        .max-w-2xl {
+            max-width: 42rem;
+        }
+        .w-full {
+            width: 100%;
+        }
+        .flex-1 {
+            flex: 1;
+        }
+        .flex-wrap {
+            flex-wrap: wrap;
+        }
+        .items-center {
+            align-items: center;
+        }
+        .justify-center {
+            justify-content: center;
+        }
+        .justify-between {
+            justify-content: space-between;
+        }
+        .gap-2 {
+            gap: 0.5rem;
+        }
+        .gap-3 {
+            gap: 0.75rem;
+        }
+        .gap-4 {
+            gap: 1rem;
+        }
+        .gap-5 {
+            gap: 1.25rem;
+        }
+        .gap-6 {
+            gap: 1.5rem;
+        }
+        .relative {
+            position: relative;
+        }
+        .z-10 {
+            z-index: 10;
+        }
+        .hidden {
+            display: none !important;
+        }
+        .block {
+            display: block;
+        }
+        .text-xs {
+            font-size: 0.65rem;
+        }
+        .text-sm {
+            font-size: 0.8rem;
+        }
+        .text-lg {
+            font-size: 1.1rem;
+        }
+        .text-2xl {
+            font-size: 1.5rem;
+        }
+        .text-3xl {
+            font-size: 1.75rem;
+        }
+        .text-6xl {
+            font-size: 3.5rem;
+        }
+        .font-mono {
+            font-family: 'JetBrains Mono', monospace;
+        }
+        .font-sans {
+            font-family: 'Inter', system-ui, sans-serif;
+        }
+        .font-bold {
+            font-weight: 700;
+        }
+        .font-semibold {
+            font-weight: 600;
+        }
+        .font-medium {
+            font-weight: 500;
+        }
+        .tracking-tight {
+            letter-spacing: -0.02em;
+        }
+        .tracking-wider {
+            letter-spacing: 0.05em;
+        }
+        .tracking-widest {
+            letter-spacing: 0.1em;
+        }
+        .uppercase {
+            text-transform: uppercase;
+        }
+        .opacity-30 {
+            opacity: 0.3;
+        }
+        .opacity-40 {
+            opacity: 0.4;
+        }
+        .opacity-60 {
+            opacity: 0.6;
+        }
+        .whitespace-nowrap {
+            white-space: nowrap;
+        }
+        .break-all {
+            word-break: break-all;
+        }
+        .border-red-500\/30 {
+            border-color: rgba(239, 68, 68, 0.3);
+        }
+        .text-red-400 {
+            color: #f87171;
+        }
+        .text-white\/20 {
+            color: rgba(255, 255, 255, 0.2);
+        }
+        .text-white\/30 {
+            color: rgba(255, 255, 255, 0.3);
+        }
+        .text-white\/40 {
+            color: rgba(255, 255, 255, 0.4);
+        }
+        .text-white\/60 {
+            color: rgba(255, 255, 255, 0.6);
+        }
+        .text-white\/70 {
+            color: rgba(255, 255, 255, 0.7);
+        }
+        .text-neon-red {
+            color: var(--neon-red);
+        }
+        .text-neon-red\/70 {
+            color: rgba(255, 0, 0, 0.7);
+        }
+        .bg-black\/70 {
+            background: rgba(0, 0, 0, 0.7);
+        }
+        .bg-red-500\/10 {
+            background: rgba(239, 68, 68, 0.1);
+        }
+        .bg-green-500 {
+            background: #22c55e;
+        }
+        .animate-pulse {
+            animation: pulse-dot 2s infinite;
+        }
+        .p-4 {
+            padding: 1rem;
+        }
+        .p-6 {
+            padding: 1.5rem;
+        }
+        .p-8 {
+            padding: 2rem;
+        }
+        .px-4 {
+            padding-left: 1rem;
+            padding-right: 1rem;
+        }
+        .px-5 {
+            padding-left: 1.25rem;
+            padding-right: 1.25rem;
+        }
+        .px-6 {
+            padding-left: 1.5rem;
+            padding-right: 1.5rem;
+        }
+        .py-2 {
+            padding-top: 0.5rem;
+            padding-bottom: 0.5rem;
+        }
+        .py-2\.5 {
+            padding-top: 0.625rem;
+            padding-bottom: 0.625rem;
+        }
+        .py-3 {
+            padding-top: 0.75rem;
+            padding-bottom: 0.75rem;
+        }
+        .py-10 {
+            padding-top: 2.5rem;
+            padding-bottom: 2.5rem;
+        }
+        .py-20 {
+            padding-top: 5rem;
+            padding-bottom: 5rem;
+        }
+        .rounded-xl {
+            border-radius: 0.75rem;
+        }
+        .rounded-2xl {
+            border-radius: 1rem;
+        }
+        .border {
+            border: 1px solid var(--border-color);
+        }
+        .border-t {
+            border-top: 1px solid var(--border-color);
+        }
+        .border-r {
+            border-right: 1px solid var(--border-color);
+        }
+        .border-white\/5 {
+            border-color: rgba(255, 255, 255, 0.05);
+        }
+        .border-white\/10 {
+            border-color: rgba(255, 255, 255, 0.1);
+        }
+        .fixed {
+            position: fixed;
+        }
+        .absolute {
+            position: absolute;
+        }
+        .relative {
+            position: relative;
+        }
+        .inset-0 {
+            inset: 0;
+        }
+        .top-6 {
+            top: 1.5rem;
+        }
+        .right-6 {
+            right: 1.5rem;
+        }
+        .z-50 {
+            z-index: 50;
+        }
+        .z-\[9999\] {
+            z-index: 9999;
+        }
+        .backdrop-blur-sm {
+            backdrop-filter: blur(4px);
+        }
+        .backdrop-blur-md {
+            backdrop-filter: blur(8px);
+        }
+        .overflow-y-auto {
+            overflow-y: auto;
+        }
+        .max-h-screen {
+            max-height: 100vh;
+        }
+        .max-h-\[85vh\] {
+            max-height: 85vh;
+        }
+        .min-w-\[200px\] {
+            min-width: 200px;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ─── TOAST CONTAINER ─── -->
+    <div id="toast-container"></div>
+
+    <!-- ─── LAYOUT ─── -->
+    <div class="flex min-h-screen">
+
+        <!-- ─── SIDEBAR ─── -->
+        <aside class="sidebar">
+            <div>
+                <div class="logo">
+                    <span class="neon">⬡</span>
+                    <span class="text">SubSync</span>
+                </div>
+                <div class="subtitle">Manager v1.0</div>
+            </div>
+
+            <nav class="flex flex-col gap-1" style="flex:1;">
+                <button onclick="showTab('subs')" data-tab="subs" class="nav-btn active">
+                    <span class="icon">📡</span>
+                    <span>Subs</span>
+                </button>
+                <button onclick="showTab('create')" data-tab="create" class="nav-btn">
+                    <span class="icon">➕</span>
+                    <span>Create</span>
+                </button>
+                <button onclick="showTab('settings')" data-tab="settings" class="nav-btn">
+                    <span class="icon">⚙️</span>
+                    <span>Settings</span>
+                </button>
+            </nav>
+
+            <div class="sidebar-footer">
+                <span class="dot"></span>
+                <span>System Online</span>
+            </div>
+        </aside>
+
+        <!-- ─── MAIN ─── -->
+        <main>
+
+            <!-- ═══ TAB: SUBS ═══ -->
+            <div id="tab-subs" class="tab-content">
+                <div class="flex items-center justify-between mb-8 flex-wrap gap-3">
+                    <div>
+                        <h2 class="page-title"><span class="glow">Your Subscriptions</span></h2>
+                        <p class="page-sub">Manage and deploy config feeds</p>
+                    </div>
+                    <button onclick="showTab('create')" class="neon-btn">+ New Sub</button>
+                </div>
+
+                <div id="subs-grid" class="subs-grid">
+                    <!-- Filled by JS -->
+                </div>
+
+                <div id="subs-empty" class="text-center py-20 hidden">
+                    <div style="font-size:3.5rem;opacity:0.3;margin-bottom:1rem;">📡</div>
+                    <p style="color:var(--text-secondary);font-size:1.1rem;">No subscriptions yet.</p>
+                    <p style="color:var(--text-muted);font-size:0.85rem;margin-top:0.5rem;">Create your first sub to get started.</p>
+                    <button onclick="showTab('create')" class="neon-btn mt-6">Create One</button>
+                </div>
+            </div>
+
+            <!-- ═══ TAB: CREATE ═══ -->
+            <div id="tab-create" class="tab-content hidden">
+                <div class="max-w-lg mx-auto">
+                    <h2 class="page-title mb-8"><span class="glow">Create Subscription</span></h2>
+
+                    <div class="glass-card p-8 rounded-2xl">
+                        <form id="create-sub-form" onsubmit="createSub(event)">
+                            <label class="block text-xs font-mono uppercase tracking-wider" style="color:var(--text-secondary);margin-bottom:0.5rem;">Subscription Name</label>
+                            <input type="text" id="sub-name" placeholder="e.g. my-vip-nodes" class="neon-input mb-6" required />
+                            <button type="submit" class="neon-btn w-full py-3">Create Subscription</button>
+                        </form>
+                    </div>
+
+                    <div class="glass-card p-6 rounded-2xl mt-5">
+                        <p style="color:var(--text-muted);font-size:0.65rem;font-family:'JetBrains Mono',monospace;line-height:1.6;">
+                            💡 After creating a sub, you can add VLESS/VMess/Trojan configs to it.
+                            The public URL <span style="color:var(--neon-red);">/sub/{name}</span> will return
+                            all configs as plain text — compatible with V2Ray clients.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ═══ TAB: SETTINGS ═══ -->
+            <div id="tab-settings" class="tab-content hidden">
+                <div class="max-w-lg mx-auto">
+                    <h2 class="page-title mb-8"><span class="glow">Settings</span></h2>
+
+                    <div class="glass-card p-8 rounded-2xl">
+                        <label class="block text-xs font-mono uppercase tracking-wider" style="color:var(--text-secondary);margin-bottom:0.75rem;">Theme</label>
+                        <div class="flex gap-3">
+                            <button onclick="setTheme('dark')" data-theme-btn="dark" class="theme-btn active">🌑 Dark</button>
+                            <button onclick="setTheme('light')" data-theme-btn="light" class="theme-btn">☀️ Light</button>
+                            <button onclick="setTheme('neon')" data-theme-btn="neon" class="theme-btn">💀 Neon</button>
+                        </div>
+                    </div>
+
+                    <div class="glass-card p-6 rounded-2xl mt-5">
+                        <p style="color:var(--text-muted);font-size:0.65rem;font-family:'JetBrains Mono',monospace;line-height:1.6;">
+                            🗄️ Data stored locally in your browser (localStorage). All changes persist across sessions.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- ─── MODAL ─── -->
+    <div id="sub-modal" class="modal-overlay hidden" onclick="if(event.target===this)closeModal()">
+        <div class="modal-box">
+            <div class="flex items-center justify-between mb-4">
+                <div>
+                    <h3 id="modal-title" class="text-lg font-bold" style="color:var(--text-primary);">Subscription</h3>
+                    <p id="modal-url-display" class="text-xs font-mono" style="color:var(--text-muted);margin-top:0.15rem;"></p>
+                </div>
+                <button onclick="closeModal()" class="modal-close">&times;</button>
+            </div>
+
+            <!-- Copy URL -->
+            <div class="flex gap-2 mb-4">
+                <input id="modal-url-input" type="text" readonly class="neon-input" style="font-size:0.7rem;" />
+                <button onclick="copySubUrl()" class="neon-btn px-4 py-2.5 whitespace-nowrap">📋 Copy</button>
+                <button id="modal-delete-btn" onclick="deleteCurrentSub()" class="neon-btn-danger px-4 py-2.5 whitespace-nowrap">🗑️</button>
+            </div>
+
+            <!-- Add Config -->
+            <form id="add-config-form" onsubmit="addConfig(event)" class="flex gap-2 mb-4">
+                <input type="text" id="new-config" placeholder="Paste VLESS/VMess config link..." class="neon-input" style="font-size:0.75rem;" required />
+                <button type="submit" class="neon-btn px-5 py-2.5 whitespace-nowrap">Add</button>
+            </form>
+
+            <!-- Configs List -->
+            <div id="modal-configs" class="flex flex-col gap-2"></div>
+            <div id="modal-configs-empty" class="hidden text-center py-10" style="color:var(--text-muted);font-size:0.8rem;font-family:'JetBrains Mono',monospace;">
+                No configs yet. Paste one above.
+            </div>
+        </div>
+    </div>
+
+    <!-- ─── JAVASCRIPT ─── -->
+    <script>
+        const STORAGE_KEY = 'subsync_data';
+        let cachedData = null;
+
+        /* ============================================================
+           داده‌ها: اولویت با سرور، fallback به localStorage
+        ============================================================ */
+
+        async function fetchDataFromServer() {
+            try {
+                const res = await fetch('/data');
+                if (!res.ok) throw new Error('Server error');
+                const data = await res.json();
+                if (data && data.subs) {
+                    cachedData = data;
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+                    return data;
+                }
+            } catch (e) {
+                console.warn('سرور در دسترس نیست، از localStorage استفاده می‌شود.');
+            }
+            const local = loadData();
+            cachedData = local;
+            return local;
+        }
+
+        function loadData() {
+            try {
+                const raw = localStorage.getItem(STORAGE_KEY);
+                if (!raw) return { subs: [] };
+                const parsed = JSON.parse(raw);
+                if (Array.isArray(parsed.subs)) {
+                    parsed.subs = parsed.subs.map(sub => ({
+                        ...sub,
+                        configs: Array.isArray(sub.configs) ? sub.configs : []
+                    }));
+                }
+                return parsed;
+            } catch (e) {
+                return { subs: [] };
+            }
+        }
+
+        function saveData(data) {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+            cachedData = data;
+            syncToServer(data);
+        }
+
+        async function syncToServer(data) {
+            try {
+                await fetch('/sync', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+            } catch (e) {
+                console.warn('همگام‌سازی با سرور ناموفق بود');
+            }
+        }
+
+        function findSubIndex(data, name) {
+            return data.subs.findIndex(s => s.name === name);
+        }
+
+        function getSub(data, name) {
+            return data.subs.find(s => s.name === name) || null;
+        }
+
+        /* ============================================================
+           TOAST
+        ============================================================ */
+
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const el = document.createElement('div');
+            el.className = `toast toast-${type}`;
+            el.textContent = message;
+            container.appendChild(el);
+            setTimeout(() => {
+                el.style.opacity = '0';
+                el.style.transform = 'translateX(20px)';
+                setTimeout(() => el.remove(), 300);
+            }, 2500);
+        }
+
+        /* ============================================================
+           TABS
+        ============================================================ */
+
+        let currentTab = 'subs';
+
+        function showTab(tab) {
+            currentTab = tab;
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            const target = document.getElementById('tab-' + tab);
+            if (target) target.classList.remove('hidden');
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.tab === tab);
+            });
+            if (tab === 'subs') renderSubs();
+        }
+
+        /* ============================================================
+           RENDER SUBS
+        ============================================================ */
+
+        function escHtml(str) {
+            const d = document.createElement('div');
+            d.textContent = str;
+            return d.innerHTML;
+        }
+
+        function renderSubs() {
+            const data = cachedData || loadData();
+            const grid = document.getElementById('subs-grid');
+            const empty = document.getElementById('subs-empty');
+
+            if (!data.subs.length) {
+                grid.innerHTML = '';
+                empty.classList.remove('hidden');
+                return;
+            }
+            empty.classList.add('hidden');
+
+            grid.innerHTML = data.subs.map(sub => `
+                    <div class="sub-card" data-sub-name="${escHtml(sub.name)}">
+                        <div class="flex items-center justify-between">
+                            <span class="name">${escHtml(sub.name)}</span>
+                            <span class="count">${sub.configs.length}</span>
+                        </div>
+                        <div class="url-preview">/sub/${escHtml(sub.name)}</div>
+                    </div>
+                `).join('');
+
+            document.querySelectorAll('.sub-card').forEach(card => {
+                card.addEventListener('click', function() {
+                    const name = this.dataset.subName;
+                    if (name) openModal(name);
+                });
+            });
+        }
+
+        /* ============================================================
+           CREATE SUB
+        ============================================================ */
+
+        async function createSub(e) {
+            e.preventDefault();
+            const input = document.getElementById('sub-name');
+            const name = input.value.trim();
+            if (!name) return showToast('لطفاً نام را وارد کنید', 'error');
+
+            let data = cachedData || loadData();
+            if (findSubIndex(data, name) !== -1) {
+                return showToast('این ساب وجود دارد', 'error');
+            }
+
+            data.subs.push({ name, configs: [] });
+            saveData(data);
+            input.value = '';
+            showToast('ساخته شد', 'success');
+            renderSubs();
+            showTab('subs');
+        }
+
+        /* ============================================================
+           MODAL
+        ============================================================ */
+
+        let currentModalSub = null;
+
+        async function openModal(name) {
+            const data = await fetchDataFromServer();
+            const sub = getSub(data, name);
+            if (!sub) {
+                showToast('یافت نشد', 'error');
+                return;
+            }
+            currentModalSub = name;
+
+            document.getElementById('modal-title').textContent = name;
+            const url = `${window.location.origin}/sub/${encodeURIComponent(name)}`;
+            document.getElementById('modal-url-input').value = url;
+            document.getElementById('modal-url-display').textContent = url;
+
+            renderConfigs(sub.configs);
+            document.getElementById('sub-modal').classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeModal() {
+            document.getElementById('sub-modal').classList.add('hidden');
+            document.body.style.overflow = '';
+            currentModalSub = null;
+        }
+
+        function renderConfigs(configs) {
+            const container = document.getElementById('modal-configs');
+            const empty = document.getElementById('modal-configs-empty');
+
+            if (!configs || !configs.length) {
+                container.innerHTML = '';
+                empty.classList.remove('hidden');
+                return;
+            }
+            empty.classList.add('hidden');
+
+            container.innerHTML = configs.map((cfg, idx) => `
+                    <div class="config-item">
+                        <span>${escHtml(cfg)}</span>
+                        <button class="del" onclick="removeConfig(${idx})">✕</button>
+                    </div>
+                `).join('');
+        }
+
+        /* ============================================================
+           ADD / REMOVE CONFIG
+        ============================================================ */
+
+        async function addConfig(e) {
+            e.preventDefault();
+            if (!currentModalSub) return showToast('هیچ سابی باز نیست', 'error');
+
+            const input = document.getElementById('new-config');
+            const raw = input.value.trim();
+            if (!raw) return showToast('لطفاً لینک کانفیگ را وارد کنید', 'error');
+
+            let data = cachedData || loadData();
+            const idx = findSubIndex(data, currentModalSub);
+            if (idx === -1) return showToast('ساب یافت نشد', 'error');
+
+            if (!Array.isArray(data.subs[idx].configs)) data.subs[idx].configs = [];
+
+            if (data.subs[idx].configs.some(c => c === raw)) {
+                return showToast('تکراریه', 'error');
+            }
+
+            data.subs[idx].configs.push(raw);
+            saveData(data);
+            input.value = '';
+            showToast('اضافه شد', 'success');
+            renderConfigs(data.subs[idx].configs);
+            renderSubs();
+        }
+
+        async function removeConfig(index) {
+            if (!currentModalSub) return;
+            if (!confirm('حذف شود؟')) return;
+
+            let data = cachedData || loadData();
+            const idx = findSubIndex(data, currentModalSub);
+            if (idx === -1) return;
+
+            data.subs[idx].configs.splice(index, 1);
+            saveData(data);
+            renderConfigs(data.subs[idx].configs);
+            renderSubs();
+            showToast('حذف شد', 'info');
+        }
+
+        /* ============================================================
+           DELETE SUB
+        ============================================================ */
+
+        async function deleteCurrentSub() {
+            if (!currentModalSub) return;
+            if (!confirm('کل ساب حذف شود؟')) return;
+
+            let data = cachedData || loadData();
+            const idx = findSubIndex(data, currentModalSub);
+            if (idx === -1) return;
+
+            data.subs.splice(idx, 1);
+            saveData(data);
+            closeModal();
+            renderSubs();
+            showToast('حذف شد', 'info');
+        }
+
+        /* ============================================================
+           COPY URL
+        ============================================================ */
+
+        function copySubUrl() {
+            const input = document.getElementById('modal-url-input');
+            if (!input.value) return;
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(input.value)
+                    .then(() => showToast('کپی شد', 'success'))
+                    .catch(() => fallbackCopy(input));
+            } else {
+                fallbackCopy(input);
+            }
+        }
+
+        function fallbackCopy(input) {
+            input.select();
+            try {
+                document.execCommand('copy');
+                showToast('کپی شد', 'success');
+            } catch (e) {
+                showToast('کپی نشد، دستی کپی کن', 'error');
+            }
+        }
+
+        /* ============================================================
+           THEME
+        ============================================================ */
+
+        function setTheme(theme) {
+            document.documentElement.setAttribute('data-theme', theme);
+            document.querySelectorAll('.theme-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.themeBtn === theme);
+            });
+            localStorage.setItem('subsync_theme', theme);
+        }
+
+        function loadTheme() {
+            const saved = localStorage.getItem('subsync_theme') || 'dark';
+            setTheme(saved);
+        }
+
+        /* ============================================================
+           INIT
+        ============================================================ */
+
+        document.addEventListener('DOMContentLoaded', async function() {
+            loadTheme();
+            await fetchDataFromServer();
+            renderSubs();
+
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') closeModal();
+            });
+        });
+    </script>
+
+</body>
+</html>
