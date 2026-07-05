@@ -1076,9 +1076,24 @@
         function loadData() {
             try {
                 const raw = localStorage.getItem(STORAGE_KEY);
-                if (raw) return JSON.parse(raw);
-            } catch (_) { /* ignore */ }
-            return { subs: [] };
+                if (!raw) return { subs: [] };
+
+                const parsed = JSON.parse(raw);
+
+                // اطمینان از اینکه هر ساب حتماً configs داره (آرایه)
+                if (Array.isArray(parsed.subs)) {
+                    parsed.subs = parsed.subs.map(sub => ({
+                        ...sub,
+                        configs: Array.isArray(sub.configs) ? sub.configs : []
+                    }));
+                }
+
+                return {
+                    subs: Array.isArray(parsed.subs) ? parsed.subs : []
+                };
+            } catch (e) {
+                return { subs: [] };
+            }
         }
 
         function saveData(data) {
@@ -1134,8 +1149,14 @@
         }
 
         /* ============================================================
-           RENDER SUBS
+           RENDER SUBS (با data attribute به جای onclick)
         ============================================================ */
+
+        function escHtml(str) {
+            const d = document.createElement('div');
+            d.textContent = str;
+            return d.innerHTML;
+        }
 
         function renderSubs() {
             const data = loadData();
@@ -1149,21 +1170,24 @@
             }
             empty.classList.add('hidden');
 
-            grid.innerHTML = data.subs.map((sub, idx) => `
-                    <div class="sub-card" onclick="openModal('${sub.name}')">
+            // هر کارت یک data-sub-name داره و با addEventListener باز می‌شه
+            grid.innerHTML = data.subs.map(sub => `
+                    <div class="sub-card" data-sub-name="${escHtml(sub.name)}">
                         <div class="flex items-center justify-between">
                             <span class="name">${escHtml(sub.name)}</span>
-                            <span class="count">${sub.configs ? sub.configs.length : 0}</span>
+                            <span class="count">${sub.configs.length}</span>
                         </div>
                         <div class="url-preview">/sub/${escHtml(sub.name)}</div>
                     </div>
                 `).join('');
-        }
 
-        function escHtml(str) {
-            const d = document.createElement('div');
-            d.textContent = str;
-            return d.innerHTML;
+            // اتصال رویداد کلیک به هر کارت
+            document.querySelectorAll('.sub-card').forEach(card => {
+                card.addEventListener('click', function() {
+                    const name = this.dataset.subName;
+                    if (name) openModal(name);
+                });
+            });
         }
 
         /* ============================================================
@@ -1174,18 +1198,18 @@
             e.preventDefault();
             const input = document.getElementById('sub-name');
             const name = input.value.trim();
-            if (!name) return showToast('Please enter a name.', 'error');
+            if (!name) return showToast('لطفاً نام را وارد کنید', 'error');
 
             const data = loadData();
             if (findSubIndex(data, name) !== -1) {
-                showToast(`Subscription "${name}" already exists.`, 'error');
+                showToast(`این ساب وجود دارد`, 'error');
                 return;
             }
 
             data.subs.push({ name, configs: [] });
             saveData(data);
             input.value = '';
-            showToast(`Subscription "${name}" created.`, 'success');
+            showToast(`ساخته شد`, 'success');
             renderSubs();
             showTab('subs');
         }
@@ -1200,15 +1224,15 @@
             const data = loadData();
             const sub = getSub(data, name);
             if (!sub) {
-                showToast('Subscription not found.', 'error');
+                showToast('یافت نشد', 'error');
                 return;
             }
             currentModalSub = name;
 
             document.getElementById('modal-title').textContent = name;
-            const url = `/sub/${encodeURIComponent(name)}`;
+            const url = `${window.location.origin}/sub/${encodeURIComponent(name)}`;
             document.getElementById('modal-url-input').value = url;
-            document.getElementById('modal-url-display').textContent = `🔗 ${url}`;
+            document.getElementById('modal-url-display').textContent = url;
 
             renderConfigs(sub.configs);
             document.getElementById('sub-modal').classList.remove('hidden');
@@ -1246,36 +1270,40 @@
 
         function addConfig(e) {
             e.preventDefault();
-            if (!currentModalSub) return showToast('No subscription open.', 'error');
+            if (!currentModalSub) return showToast('هیچ سابی باز نیست', 'error');
 
             const input = document.getElementById('new-config');
             const raw = input.value.trim();
-            if (!raw) return showToast('Please paste a config link.', 'error');
+            if (!raw) return showToast('لطفاً لینک کانفیگ را وارد کنید', 'error');
 
             const data = loadData();
             const idx = findSubIndex(data, currentModalSub);
             if (idx === -1) {
-                showToast('Subscription not found.', 'error');
+                showToast('ساب یافت نشد', 'error');
                 return;
             }
 
-            // Avoid duplicates (simple check)
+            // مطمئنیم configs آرایه است
+            if (!Array.isArray(data.subs[idx].configs)) {
+                data.subs[idx].configs = [];
+            }
+
             if (data.subs[idx].configs.some(c => c === raw)) {
-                showToast('Config already exists.', 'error');
+                showToast('تکراریه', 'error');
                 return;
             }
 
             data.subs[idx].configs.push(raw);
             saveData(data);
             input.value = '';
-            showToast('Config added.', 'success');
+            showToast('اضافه شد', 'success');
             renderConfigs(data.subs[idx].configs);
             renderSubs();
         }
 
         function removeConfig(index) {
             if (!currentModalSub) return;
-            if (!confirm('Remove this config?')) return;
+            if (!confirm('حذف شود؟')) return;
 
             const data = loadData();
             const idx = findSubIndex(data, currentModalSub);
@@ -1285,7 +1313,7 @@
             saveData(data);
             renderConfigs(data.subs[idx].configs);
             renderSubs();
-            showToast('Config removed.', 'info');
+            showToast('حذف شد', 'info');
         }
 
         /* ============================================================
@@ -1294,7 +1322,7 @@
 
         function deleteCurrentSub() {
             if (!currentModalSub) return;
-            if (!confirm(`Delete subscription "${currentModalSub}" and all its configs?`)) return;
+            if (!confirm(`کل ساب حذف شود؟`)) return;
 
             const data = loadData();
             const idx = findSubIndex(data, currentModalSub);
@@ -1304,7 +1332,7 @@
             saveData(data);
             closeModal();
             renderSubs();
-            showToast(`Subscription deleted.`, 'info');
+            showToast(`حذف شد`, 'info');
         }
 
         /* ============================================================
@@ -1314,14 +1342,26 @@
         function copySubUrl() {
             const input = document.getElementById('modal-url-input');
             if (!input.value) return;
-            navigator.clipboard.writeText(input.value).then(() => {
-                showToast('URL copied!', 'success');
-            }).catch(() => {
-                // fallback
-                input.select();
+
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(input.value).then(() => {
+                    showToast('کپی شد', 'success');
+                }).catch(() => {
+                    fallbackCopy(input);
+                });
+            } else {
+                fallbackCopy(input);
+            }
+        }
+
+        function fallbackCopy(input) {
+            input.select();
+            try {
                 document.execCommand('copy');
-                showToast('URL copied!', 'success');
-            });
+                showToast('کپی شد', 'success');
+            } catch (e) {
+                showToast('کپی نشد، دستی کپی کن', 'error');
+            }
         }
 
         /* ============================================================
@@ -1330,7 +1370,6 @@
 
         function setTheme(theme) {
             document.documentElement.setAttribute('data-theme', theme);
-            // Update active button
             document.querySelectorAll('.theme-btn').forEach(btn => {
                 btn.classList.toggle('active', btn.dataset.themeBtn === theme);
             });
@@ -1350,14 +1389,10 @@
             loadTheme();
             renderSubs();
 
-            // Keyboard shortcut: Escape to close modal
             document.addEventListener('keydown', (e) => {
                 if (e.key === 'Escape') closeModal();
             });
         });
-
-        // Close modal on backdrop click (already handled by onclick on overlay)
-        // Also close on Escape via the listener above.
     </script>
 
 </body>
